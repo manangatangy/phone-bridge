@@ -1,0 +1,45 @@
+#!/bin/sh
+
+case "$1" in
+    "up" )
+        echo "creating bridge..."
+
+        dhcpcd -k usb0       # Drop ip address from usb0 device
+
+        sysctl net.ipv4.ip_forward=1
+
+        # turn on the LAN interface
+        ifconfig eth0 0.0.0.0 promisc up
+        
+        # define a bridge name and set some basic config
+        brctl addbr br0     # use 'brctl show' to list bridge, 'brctl showbr br0' for details
+        brctl stp br0 off   # no need for spanning tree protocol; only bridge on the lan
+        brctl setfd br0 1
+        brctl sethello br0 1
+
+        # add lan and phone to the bridge
+        brctl addif br0 eth0  # send frames; eth0 <--> br0
+        brctl addif br0 usb0  # send frames; usb0 <--> br0
+
+        ifconfig br0 up
+
+        dhcpcd --debug br0
+
+        echo "bridge created"
+    ;;
+    "down" )
+        echo "removing bridge..."
+        dhcpcd -k br0
+        ifconfig eth0 down
+        ifconfig br0 down
+        brctl delif br0 usb0
+        brctl delif br0 eth0
+        brctl delbr br0
+        echo "removed bridge"
+    ;;
+    * )
+        echo "usage $0 up|down"
+        exit 0
+    ;;
+esac
+

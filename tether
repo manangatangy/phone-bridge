@@ -1,0 +1,57 @@
+#!/bin/sh
+
+IFACE_STATE="UNKNOWN"
+while true ; do
+    # What is current state.
+
+    # Check if we are tethered with an ip address
+    ifconfig usb0 2>/dev/null | grep inet >/dev/null
+    if [ $? -eq 0 ] ; then
+        NEW_STATE="CONNECTED"
+    else
+        # Are we tethered and up?
+        ip link show usb0 2>/dev/null | grep -i up >/dev/null
+        if [ $? -eq 0 ] ; then
+            NEW_STATE="UP"
+        else
+            # Or are we just tethered?
+            ifconfig usb0 2>/dev/null | grep ether >/dev/null
+            if [ $? -eq 0 ] ; then
+                NEW_STATE="TETHERED"
+            else
+                NEW_STATE="NOT TETHERED"
+            fi
+        fi
+    fi
+
+    # If there is a change of state, print it and act
+    if [ "$IFACE_STATE" != "$NEW_STATE" ] ; then
+        IFACE_STATE="$NEW_STATE"
+        echo "usb0 is now $IFACE_STATE"
+
+        case "$IFACE_STATE" in 
+        "TETHERED")
+            # Bring up the interface
+            ifconfig usb0 0.0.0.0 promisc up
+            ;;
+        "UP")
+            # Fetch an ip address
+            dhcpcd --debug usb0
+            if [ $? -ne 0 ] ; then
+                # Reset the state so that if the NEW_STATE is still UP we 
+                # do another attempt at dhcpcd.  This continues indefinitely.
+                IFACE_STATE="TETHERED"
+                echo "dhcpcd failed, retrying..."
+            fi
+            ;;
+        "CONNECTED")
+            # Show what we got and exit.
+            ifconfig usb0
+            exit 0
+            ;;
+        esac
+    fi
+
+    sleep 1
+done
+
