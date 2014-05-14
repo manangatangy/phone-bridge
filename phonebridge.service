@@ -1,0 +1,9 @@
+[Unit]
+Description=Manages bridge between eth0 and usb0 (tethered phone)
+
+[Service]
+ExecStart=/usr/local/bin/phonebridge.sh
+
+[Install]
+WantedBy=multi-user.target
+
